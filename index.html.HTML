@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>خريطة فلسطين التفاعلية</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Cairo',sans-serif; background:#1a1a2e; color:#eee; display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+    header { background:linear-gradient(135deg,#0f3460,#16213e); padding:10px 20px; display:flex; align-items:center; justify-content:space-between; border-bottom:3px solid #e94560; box-shadow:0 2px 15px rgba(233,69,96,0.3); z-index:1000; }
+    header h1 { font-size:1.3rem; font-weight:700; color:#fff; }
+    header h1 span { color:#e94560; }
+    .header-badge { background:#e94560; color:#fff; font-size:0.7rem; padding:3px 10px; border-radius:20px; }
+    .main-container { display:flex; flex:1; overflow:hidden; }
+    .sidebar { width:260px; background:#16213e; padding:15px; overflow-y:auto; display:flex; flex-direction:column; gap:15px; border-left:1px solid #0f3460; }
+    .sidebar-section { background:#0f3460; border-radius:10px; padding:12px; }
+    .sidebar-section h3 { font-size:0.85rem; color:#e94560; margin-bottom:10px; border-bottom:1px solid #e9456033; padding-bottom:6px; }
+    .layer-item { display:flex; align-items:center; gap:8px; margin-bottom:8px; cursor:pointer; }
+    .layer-item input[type="checkbox"] { accent-color:#e94560; width:15px; height:15px; cursor:pointer; }
+    .layer-item label { font-size:0.8rem; cursor:pointer; color:#ccc; }
+    .legend-item { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:0.78rem; color:#bbb; }
+    .legend-color { width:18px; height:12px; border-radius:3px; border:1px solid #ffffff33; flex-shrink:0; }
+    .stat-item { display:flex; justify-content:space-between; font-size:0.78rem; color:#aaa; margin-bottom:6px; }
+    .stat-item span:last-child { color:#e94560; font-weight:600; }
+    .btn-find { background:linear-gradient(135deg,#e94560,#c73652); color:#fff; border:none; padding:10px; border-radius:8px; font-family:'Cairo',sans-serif; font-size:0.85rem; cursor:pointer; width:100%; font-weight:600; transition:all 0.3s; }
+    .btn-find:hover { background:linear-gradient(135deg,#c73652,#a02540); transform:translateY(-1px); box-shadow:0 4px 15px rgba(233,69,96,0.4); }
+    .coords { font-size:0.7rem; color:#888; background:#0a0f1e; padding:6px 8px; border-radius:6px; font-family:monospace; direction:ltr; text-align:left; white-space:pre; }
+    #map { flex:1; z-index:1; }
+    footer { background:#0f3460; text-align:center; padding:5px; font-size:0.7rem; color:#666; border-top:1px solid #e9456022; }
+    .leaflet-popup-content-wrapper { background:#16213e; color:#eee; border:1px solid #e94560; border-radius:10px; font-family:'Cairo',sans-serif; }
+    .leaflet-popup-tip { background:#16213e; }
+    .popup-title { font-weight:700; color:#e94560; margin-bottom:4px; }
+    .popup-info { font-size:0.82rem; color:#bbb; }
+    .weather-popup { min-width:160px; }
+    .weather-popup .temp { font-size:1.4rem; font-weight:700; color:#fff; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>🗺️ خريطة <span>فلسطين</span> التفاعلية</h1>
+  <span class="header-badge">Palestine 1923</span>
+</header>
+<div class="main-container">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <h3>🗂️ طبقات الخريطة</h3>
+      <div class="layer-item"><input type="checkbox" id="layerOSM" checked onchange="toggleLayer('osm',this.checked)"><label for="layerOSM">Open Street Map</label></div>
+      <div class="layer-item"><input type="checkbox" id="layerWB" onchange="toggleLayer('wb',this.checked)"><label for="layerWB">West Bank Orthophoto (2024)</label></div>
+      <div class="layer-item"><input type="checkbox" id="layerGaza" onchange="toggleLayer('gaza',this.checked)"><label for="layerGaza">Gaza Strip Orthophoto (2024)</label></div>
+      <div class="layer-item"><input type="checkbox" id="layerBounds" checked onchange="toggleLayer('bounds',this.checked)"><label for="layerBounds">حدود المحافظات</label></div>
+      <div class="layer-item"><input type="checkbox" id="layerOslo" checked onchange="toggleLayer('oslo',this.checked)"><label for="layerOslo">Oslo Areas (A, B, C)</label></div>
+      <div class="layer-item"><input type="checkbox" id="layerWeather" checked onchange="toggleLayer('weather',this.checked)"><label for="layerWeather">محطات الطقس</label></div>
+    </div>
+    <div class="sidebar-section">
+      <h3>🏷️ دليل الألوان</h3>
+      <div class="legend-item"><div class="legend-color" style="background:#e07b39;"></div><span>منطقة A</span></div>
+      <div class="legend-item"><div class="legend-color" style="background:#e8c97a;"></div><span>منطقة B</span></div>
+      <div class="legend-item"><div class="legend-color" style="background:#a8d5a2;"></div><span>منطقة C</span></div>
+      <div class="legend-item"><div class="legend-color" style="background:none;border:2px dashed #e94560;"></div><span>حدود المحافظة</span></div>
+    </div>
+    <div class="sidebar-section">
+      <h3>📊 إحصائيات</h3>
+      <div class="stat-item"><span>عدد المحطات</span><span>8</span></div>
+      <div class="stat-item"><span>المحافظات</span><span>11</span></div>
+      <div class="stat-item"><span>الشريط الساحلي</span><span>~40 كم</span></div>
+    </div>
+    <button class="btn-find" onclick="findMe()">📍 موقعي الحالي</button>
+    <div class="sidebar-section">
+      <h3>🔢 الإحداثيات</h3>
+      <div class="coords" id="coordsDisplay">انقر على الخريطة</div>
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+<footer>Leaflet.js | © OpenStreetMap Contributors | Palestine Interactive Map</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const map = L.map('map',{center:[31.9,35.2],zoom:8,zoomControl:false});
+  L.control.zoom({position:'topleft'}).addTo(map);
+
+  const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
+  const wbLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:19,opacity:0.85});
+  const gazaLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:19,opacity:0.85});
+
+ fetch('ABC-JSON.json')
+  .then(r => r.json())
+  .then(data => {
+    const osloGroup = L.geoJSON(data, {
+      style: function(feature) {
+       const type = feature.properties.LandClas_1;
+const colors = {'Area A':'#e07b39','Area B':'#e8c97a','Area C':'#a8d5a2'};
+        
+        return {
+          color: '#333',
+          fillColor: colors[type] || '#ccc',
+          fillOpacity: 0.4,
+          weight: 1.5
+        };
+      }
+    }).addTo(map);
+    layers['oslo'] = osloGroup;
+  });
+
+  const governorateLines = L.layerGroup([
+    L.polyline([[33.2,35.4],[32.9,35.5],[32.5,35.4],[32.0,35.2],[31.5,35.1],[31.2,34.9],[31.0,34.7]],{color:'#e94560',weight:2,dashArray:'6,4',opacity:0.8}),
+    L.polyline([[32.2,35.0],[32.0,35.3],[31.8,35.4],[31.5,35.3]],{color:'#e94560',weight:1.5,dashArray:'4,4',opacity:0.6}),
+    L.polyline([[32.5,35.1],[32.3,35.35],[32.1,35.5]],{color:'#e94560',weight:1.5,dashArray:'4,4',opacity:0.6})
+  ]).addTo(map);
+
+  const weatherIcon = L.divIcon({html:`<div style="background:#e94560;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4);">🌡️</div>`,className:'',iconSize:[28,28],iconAnchor:[14,14]});
+
+  const stations=[
+    {name:"جنين",lat:32.46,lng:35.30,temp:"28°C",humidity:"52%",wind:"12 كم/س"},
+    {name:"طولكرم",lat:32.31,lng:35.02,temp:"26°C",humidity:"65%",wind:"15 كم/س"},
+    {name:"نابلس",lat:32.22,lng:35.26,temp:"27°C",humidity:"48%",wind:"10 كم/س"},
+    {name:"رام الله",lat:31.90,lng:35.21,temp:"25°C",humidity:"55%",wind:"8 كم/س"},
+    {name:"أريحا",lat:31.86,lng:35.44,temp:"35°C",humidity:"30%",wind:"6 كم/س"},
+    {name:"بيت لحم",lat:31.70,lng:35.20,temp:"26°C",humidity:"50%",wind:"11 كم/س"},
+    {name:"الخليل",lat:31.53,lng:35.10,temp:"24°C",humidity:"45%",wind:"9 كم/س"},
+    {name:"غزة",lat:31.50,lng:34.47,temp:"30°C",humidity:"70%",wind:"18 كم/س"}
+  ];
+
+  const weatherMarkers = stations.map(s=>L.marker([s.lat,s.lng],{icon:weatherIcon}).bindPopup(`<div class="weather-popup"><div class="popup-title">📍 ${s.name}</div><div class="temp">🌡️ ${s.temp}</div><div class="popup-info">💧 الرطوبة: ${s.humidity}</div><div class="popup-info">💨 الرياح: ${s.wind}</div></div>`));
+  const weatherGroup = L.layerGroup(weatherMarkers).addTo(map);
+
+  const layers={osm:osmLayer,wb:wbLayer,gaza:gazaLayer,bounds:governorateLines,oslo:osloGroup,weather:weatherGroup};
+  function toggleLayer(name,show){show?map.addLayer(layers[name]):map.removeLayer(layers[name]);}
+
+  map.on('mousemove',function(e){document.getElementById('coordsDisplay').textContent=`Lat: ${e.latlng.lat.toFixed(5)}\nLng: ${e.latlng.lng.toFixed(5)}`;});
+  map.on('click',function(e){document.getElementById('coordsDisplay').textContent=`Lat: ${e.latlng.lat.toFixed(5)}\nLng: ${e.latlng.lng.toFixed(5)}`;});
+
+  function findMe(){
+    if(!navigator.geolocation){alert('المتصفح لا يدعم تحديد الموقع');return;}
+    navigator.geolocation.getCurrentPosition(
+      p=>{map.setView([p.coords.latitude,p.coords.longitude],13);L.marker([p.coords.latitude,p.coords.longitude]).addTo(map).bindPopup('<div class="popup-title">📍 موقعك الحالي</div>').openPopup();},
+      ()=>alert('تعذّر تحديد موقعك.')
+    );
+  }
+
+  L.control.scale({imperial:false,position:'bottomright'}).addTo(map);
+</script>
+</body>
+</html>
